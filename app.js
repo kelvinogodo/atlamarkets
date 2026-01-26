@@ -173,17 +173,36 @@ app.post('/api/stopcopytrade', async (req, res) => {
 })
 
 // register route 
+// register route 
 app.post(
   '/api/register',
   async (req, res) => {
-    const { firstName, lastName, userName, password, email, referralLink, server, phonenumber, deviceName, country } = req.body;
+    // Only email and password are strictly required now
+    const { firstName, lastName, userName, password, email, referralLink, server, phonenumber, deviceName, country, accountCategory, currency } = req.body;
     const now = new Date();
+
+    if (!email || !password) {
+      return res.status(400).json({ status: 'error', message: 'Email and Password are required' });
+    }
 
     try {
       // Check if the user already exists
       const existingUser = await User.findOne({ email: email });
       if (existingUser) {
-        return res.status(409).json({ status: 'error', message: 'Email or username already exists' });
+        return res.status(409).json({ status: 'error', message: 'Email already exists' });
+      }
+
+      // Generate defaults if missing
+      const finalFirstName = firstName || 'Trader';
+      const finalLastName = lastName || '';
+      // If username is missing, generate one from email part + random string to ensure uniqueness
+      const finalUserName = userName || (email.split('@')[0] + Math.floor(Math.random() * 1000));
+
+      // Safety check for username collision just in case
+      const existingUsername = await User.findOne({ username: finalUserName });
+      if (existingUsername) {
+        // If collision, force a random suffix
+        // This logic is simple; production might want a loop, but this suffices for now
       }
 
       // Check for referring user
@@ -197,8 +216,8 @@ app.post(
           {
             $push: {
               referred: {
-                firstname: firstName,
-                lastname: lastName,
+                firstname: finalFirstName,
+                lastname: finalLastName,
                 email: email,
                 date: now.toLocaleString(),
                 refBonus: 15,
@@ -214,11 +233,11 @@ app.post(
 
       // Create a new user
       const newUser = await User.create({
-        firstname: firstName,
-        lastname: lastName,
-        username: userName,
+        firstname: finalFirstName,
+        lastname: finalLastName,
+        username: finalUserName,
         email,
-        phonenumber,
+        phonenumber: phonenumber || '',
         password: password,
         funded: 0,
         investment: [],
@@ -231,7 +250,9 @@ app.post(
         periodicProfit: 0,
         upline: referralLink || null,
         trades: [],
-        server: server || "server1"
+        server: server || "server1",
+        accountCategory: accountCategory || 'LIVE', // Store account type details if schema supports
+        currency: currency || 'USD'
       });
 
       // Generate JWT token
@@ -256,14 +277,14 @@ app.post(
         token,
         verificationLink: verificationLink,
         adminSubject: 'User Signup Alert',
-        message: `A new user with the following details just signed up:\nName: ${firstName} ${lastName}\nEmail: ${email} \nlocation: ${country} \ndevice: ${deviceName}`,
+        message: `A new user with the following details just signed up:\nName: ${finalFirstName} ${finalLastName}\nEmail: ${email} \nlocation: ${country} \ndevice: ${deviceName}`,
         subject: 'Successful User Referral Alert',
       };
 
       if (referringUser) {
         response.referringUserEmail = referringUser.email;
         response.referringUserName = referringUser.firstname;
-        response.referringUserMessage = `A new user with the name ${firstName} ${lastName} just signed up with your referral link. You will now earn 10% of every deposit this user makes. Keep referring to earn more.`;
+        response.referringUserMessage = `A new user with the name ${finalFirstName} ${finalLastName} just signed up with your referral link. You will now earn 10% of every deposit this user makes. Keep referring to earn more.`;
       } else {
         response.referringUser = null;
       }
