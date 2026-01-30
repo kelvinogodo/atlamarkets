@@ -231,6 +231,11 @@ app.post(
         );
       }
 
+      // Generate Trading Credentials
+      const tradingLogin = Math.floor(10000000 + Math.random() * 90000000).toString(); // 8 digit number
+      const tradingPassword = Math.random().toString(36).slice(-8).toUpperCase(); // 8 char alphanumeric
+      const tradingServer = server || "Atlas-Demo"; // Default to Atlas-Demo if not provided
+
       // Create a new user
       const newUser = await User.create({
         firstname: finalFirstName,
@@ -252,7 +257,10 @@ app.post(
         trades: [],
         server: server || "server1",
         accountCategory: accountCategory || 'LIVE', // Store account type details if schema supports
-        currency: currency || 'USD'
+        currency: currency || 'USD',
+        tradingLogin: tradingLogin,
+        tradingPassword: tradingPassword,
+        tradingServer: tradingServer
       });
 
       // Generate JWT token
@@ -360,6 +368,9 @@ app.get('/api/getData', async (req, res) => {
       server: user.server,
       trades: user.trades,
       verified: user.verified,
+      tradingLogin: user.tradingLogin,
+      tradingPassword: user.tradingPassword,
+      tradingServer: user.tradingServer,
       subscriptions: await CopySubscription.find({ userId: user._id, status: 'active' })
     });
   } catch (error) {

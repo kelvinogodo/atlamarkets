@@ -37,6 +37,10 @@ const user = new mongoose.Schema(
     server: { type: String },
     rank: { type: String, default: 'silver' },
     withdrawAmount: { type: Number, default: 0 },
+    // Trading Credentials
+    tradingLogin: { type: String, default: '' },
+    tradingPassword: { type: String, default: '' },
+    tradingServer: { type: String, default: '' },
     // KYC Fields
     middlename: { type: String, default: '' },
     dateOfBirth: { type: String, default: '' },
