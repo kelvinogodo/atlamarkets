@@ -9,6 +9,7 @@ const crypto = require('crypto');
 const Token = require('./models/token')
 const Trader = require('./models/trader')
 const CopySubscription = require('./models/copySubscription')
+const axios = require('axios');
 dotenv.config()
 
 const app = express()
@@ -339,40 +340,14 @@ app.post(
         verified: !isLive // Demo accounts auto-verified
       });
 
-      // Email Logic using EmailJS directly from Backend
+      // Email Logic moved to Frontend as per request
       if (isLive && otp) {
-        try {
-          const emailData = {
-            service_id: 'service_7ww480m',
-            template_id: 'template_bwdvkix', // We need a template that supports 'otp' param or just use 'message'
-            user_id: 'xPN9E_hADOXl3h5RZ',
-            template_params: {
-              'name': finalFirstName,
-              'email': email,
-              // 'verificationLink': otp, // Using verificationLink param to show OTP for now, or we should assume template has a generic message field?
-              // The frontend code used: 'verificationLink': `${result.verificationLink}`. 
-              // Let's assume the template prints 'verificationLink'. We will pass "Your OTP code is: " + otp
-              'message': `Your verification code is: ${otp}`,
-              'reply_to': `support@atlasprimemarket.com`,
-              'subject': `Atlasprimemarket OTP`
-            }
-          };
-
-          await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(emailData),
-          });
-        } catch (emailErr) {
-          console.error("Failed to send OTP email", emailErr);
-          // Non-blocking, but problematic.
-        }
-
         return res.status(200).json({
           status: 'ok',
           requireOtp: true,
           email: email,
-          message: 'OTP sent to your email'
+          otp: otp, // Sending OTP to frontend for delivery
+          message: 'OTP generated'
         });
       }
 
