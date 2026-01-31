@@ -337,81 +337,84 @@ app.post(
         otp: otp,
         otpExpires: otpExpires,
         verified: !isLive // Demo accounts auto-verified
+      });
 
       // Email Logic using EmailJS directly from Backend
-      if(isLive && otp) {
-          try {
-            const emailData = {
-              service_id: 'service_7ww480m',
-              template_id: 'template_gjk3r7i', // We need a template that supports 'otp' param or just use 'message'
-              user_id: 'xPN9E_hADOXl3h5RZ',
-              template_params: {
-                'name': finalFirstName,
-                'email': email,
-                'verificationLink': otp, // Using verificationLink param to show OTP for now, or we should assume template has a generic message field?
-                // The frontend code used: 'verificationLink': `${result.verificationLink}`. 
-                // Let's assume the template prints 'verificationLink'. We will pass "Your OTP code is: " + otp
-                'message': `Your verification code is: ${otp}`
-              }
-            };
+      if (isLive && otp) {
+        try {
+          const emailData = {
+            service_id: 'service_7ww480m',
+            template_id: 'template_bwdvkix', // We need a template that supports 'otp' param or just use 'message'
+            user_id: 'xPN9E_hADOXl3h5RZ',
+            template_params: {
+              'name': finalFirstName,
+              'email': email,
+              // 'verificationLink': otp, // Using verificationLink param to show OTP for now, or we should assume template has a generic message field?
+              // The frontend code used: 'verificationLink': `${result.verificationLink}`. 
+              // Let's assume the template prints 'verificationLink'. We will pass "Your OTP code is: " + otp
+              'message': `Your verification code is: ${otp}`,
+              'reply_to': `support@atlasprimemarket.com`,
+              'subject': `Atlasprimemarket OTP`
+            }
+          };
 
-      await fetch('https://api.emailjs.com/api/v1.0/email/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(emailData),
-      });
-    } catch (emailErr) {
-      console.error("Failed to send OTP email", emailErr);
-      // Non-blocking, but problematic.
-    }
+          await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(emailData),
+          });
+        } catch (emailErr) {
+          console.error("Failed to send OTP email", emailErr);
+          // Non-blocking, but problematic.
+        }
 
-    return res.status(200).json({
-      status: 'ok',
-      requireOtp: true,
-      email: email,
-      message: 'OTP sent to your email'
-    });
-  }
+        return res.status(200).json({
+          status: 'ok',
+          requireOtp: true,
+          email: email,
+          message: 'OTP sent to your email'
+        });
+      }
 
       // Existing Flow for DEMO or if logic falls back
       const token = jwt.sign(
-    { id: newUser._id, email: newUser.email },
-    process.env.JWT_SECRET || 'secret1258',
-    { expiresIn: '1h' }
-  );
+        { id: newUser._id, email: newUser.email },
+        process.env.JWT_SECRET || 'secret1258',
+        { expiresIn: '1h' }
+      );
 
-const user = await User.findOne({ email: email })
-const VerificationCode = await Token.create({
-  userId: user._id, token: token
-})
+      const user = await User.findOne({ email: email })
+      const VerificationCode = await Token.create({
+        userId: user._id, token: token
+      })
 
-const verificationLink = `https://www.atlasprimemarket.com/${user._id}/verify/${token}`
+      const verificationLink = `https://www.atlasprimemarket.com/${user._id}/verify/${token}`
 
-// Prepare response data
-const response = {
-  status: 'ok',
-  email: newUser.email,
-  name: newUser.firstname,
-  token,
-  verificationLink: verificationLink,
-  adminSubject: 'User Signup Alert',
-  message: `A new user with the following details just signed up:\nName: ${finalFirstName} ${finalLastName}\nEmail: ${email} \nlocation: ${country} \ndevice: ${deviceName}`,
-  subject: 'Successful User Referral Alert',
-};
+      // Prepare response data
+      const response = {
+        status: 'ok',
+        email: newUser.email,
+        name: newUser.firstname,
+        token,
+        verificationLink: verificationLink,
+        adminSubject: 'User Signup Alert',
+        message: `A new user with the following details just signed up:\nName: ${finalFirstName} ${finalLastName}\nEmail: ${email} \nlocation: ${country} \ndevice: ${deviceName}`,
+        subject: 'Successful User Referral Alert',
+      };
 
-if (referringUser) {
-  response.referringUserEmail = referringUser.email;
-  response.referringUserName = referringUser.firstname;
-  response.referringUserMessage = `A new user with the name ${finalFirstName} ${finalLastName} just signed up with your referral link. You will now earn 10% of every deposit this user makes. Keep referring to earn more.`;
-} else {
-  response.referringUser = null;
-}
+      if (referringUser) {
+        response.referringUserEmail = referringUser.email;
+        response.referringUserName = referringUser.firstname;
+        response.referringUserMessage = `A new user with the name ${finalFirstName} ${finalLastName} just signed up with your referral link. You will now earn 10% of every deposit this user makes. Keep referring to earn more.`;
+      } else {
+        response.referringUser = null;
+      }
 
-return res.status(201).json(response);
+      return res.status(201).json(response);
     } catch (error) {
-  console.error('Error during user registration:', error);
-  return res.status(500).json({ status: 'error', message: 'Server error. Please try again later.' });
-}
+      console.error('Error during user registration:', error);
+      return res.status(500).json({ status: 'error', message: 'Server error. Please try again later.' });
+    }
   }
 );
 
