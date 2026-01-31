@@ -459,7 +459,27 @@ app.get('/api/getData', async (req, res) => {
       tradingLogin: user.tradingLogin,
       tradingPassword: user.tradingPassword,
       tradingServer: user.tradingServer,
-      subscriptions: await CopySubscription.find({ userId: user._id, status: 'active' })
+      subscriptions: await CopySubscription.find({ userId: user._id, status: 'active' }),
+
+      // KYC Fields
+      middlename: user.middlename,
+      dateOfBirth: user.dateOfBirth,
+      nationality: user.nationality,
+      city: user.city,
+      employmentStatus: user.employmentStatus,
+      occupation: user.occupation,
+      annualIncome: user.annualIncome,
+      sourceOfFunds: user.sourceOfFunds,
+      investmentExperience: user.investmentExperience,
+      idType: user.idType,
+      idNumber: user.idNumber,
+      idExpiry: user.idExpiry,
+      idDocumentFront: user.idDocumentFront,
+      idDocumentBack: user.idDocumentBack,
+      proofOfAddress: user.proofOfAddress,
+      selfiePhoto: user.selfiePhoto,
+      kycStatus: user.kycStatus,
+      kycRejectionReason: user.kycRejectionReason
     });
   } catch (error) {
     console.error('Error fetching user data:', error.message);
