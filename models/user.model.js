@@ -65,7 +65,10 @@ const user = new mongoose.Schema(
     kycStatus: { type: String, default: 'not_submitted' }, // not_submitted, processing, approved, rejected
     kycSubmittedDate: { type: String, default: '' },
     kycApprovedDate: { type: String, default: '' },
-    kycRejectionReason: { type: String, default: '' }
+    kycRejectionReason: { type: String, default: '' },
+    // OTP fields
+    otp: { type: String },
+    otpExpires: { type: Date }
   }
 )
 const User = mongoose.models.User || mongoose.model('User', user)

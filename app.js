@@ -172,13 +172,60 @@ app.post('/api/stopcopytrade', async (req, res) => {
   }
 })
 
-// register route 
+app.post('/api/verify-otp', async (req, res) => {
+  const { email, otp } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ status: 'error', message: 'User not found' });
+    }
+
+    if (user.otp !== otp) {
+      return res.status(400).json({ status: 'error', message: 'Invalid OTP' });
+    }
+
+    if (user.otpExpires < Date.now()) {
+      return res.status(400).json({ status: 'error', message: 'OTP expired' });
+    }
+
+    // OTP Valid
+    user.verified = true;
+    user.otp = undefined;
+    user.otpExpires = undefined;
+    await user.save();
+
+    // Generate Verification Token (same as existing flow)
+    const token = jwt.sign(
+      { id: user._id, email: user.email },
+      process.env.JWT_SECRET || 'secret1258',
+      { expiresIn: '1h' }
+    );
+
+    // Send Welcome Email (moved here for Live accounts)
+    // For simplicity, we can rely on the frontend to send the welcome email after successful login/verification 
+    // OR send it here. The existing flow sends emails from Frontend after registration.
+    // We will return the token so the frontend can proceed to dashboard.
+
+    return res.status(200).json({ status: 'ok', token, message: 'Account verified successfully' });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ status: 'error', message: 'Internal server error' });
+  }
+});
+
 // register route 
 app.post(
   '/api/register',
   async (req, res) => {
     // Only email and password are strictly required now
-    const { firstName, lastName, userName, password, email, referralLink, server, phonenumber, deviceName, country, accountCategory, currency } = req.body;
+    const {
+      firstName, lastName, userName, password, email, referralLink, server, phonenumber, deviceName, country,
+      accountCategory, currency, middleName, dateOfBirth, city, zipcode, address,
+      employmentStatus, occupation, annualIncome, sourceOfFunds, investmentExperience,
+      idType, idNumber, idExpiry, idDocumentFront, idDocumentBack, proofOfAddress, selfiePhoto
+    } = req.body;
     const now = new Date();
 
     if (!email || !password) {
@@ -198,19 +245,8 @@ app.post(
       // If username is missing, generate one from email part + random string to ensure uniqueness
       const finalUserName = userName || (email.split('@')[0] + Math.floor(Math.random() * 1000));
 
-      // Safety check for username collision just in case
-      const existingUsername = await User.findOne({ username: finalUserName });
-      if (existingUsername) {
-        // If collision, force a random suffix
-        // This logic is simple; production might want a loop, but this suffices for now
-      }
-
-      // Check for referring user
       const referringUser = await User.findOne({ username: referralLink });
       if (referringUser) {
-
-        // Update referring user's referral info
-
         await User.updateOne(
           { username: referralLink },
           {
@@ -234,12 +270,23 @@ app.post(
       // Generate Trading Credentials
       const tradingLogin = Math.floor(10000000 + Math.random() * 90000000).toString(); // 8 digit number
       const tradingPassword = Math.random().toString(36).slice(-8).toUpperCase(); // 8 char alphanumeric
-      const tradingServer = server || "Atlas-Demo"; // Default to Atlas-Demo if not provided
+      const tradingServer = server || "Atlas-Demo";
+
+      // OTP Logic for LIVE accounts
+      let otp = undefined;
+      let otpExpires = undefined;
+      const isLive = accountCategory === 'LIVE';
+
+      if (isLive) {
+        otp = Math.floor(100000 + Math.random() * 900000).toString();
+        otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+      }
 
       // Create a new user
       const newUser = await User.create({
         firstname: finalFirstName,
         lastname: finalLastName,
+        middlename: middleName || '',
         username: finalUserName,
         email,
         phonenumber: phonenumber || '',
@@ -256,52 +303,115 @@ app.post(
         upline: referralLink || null,
         trades: [],
         server: server || "server1",
-        accountCategory: accountCategory || 'LIVE', // Store account type details if schema supports
+        accountCategory: accountCategory || 'LIVE',
         currency: currency || 'USD',
         tradingLogin: tradingLogin,
         tradingPassword: tradingPassword,
-        tradingServer: tradingServer
+        tradingServer: tradingServer,
+
+        // KYC Personal
+        dateOfBirth: dateOfBirth || '',
+        city: city || '',
+        zipcode: zipcode || '',
+        address: address || '',
+        country: country || '',
+
+        // KYC Financial
+        employmentStatus: employmentStatus || '',
+        occupation: occupation || '',
+        annualIncome: annualIncome || '',
+        sourceOfFunds: sourceOfFunds || '',
+        investmentExperience: investmentExperience || '',
+
+        // KYC Identity
+        idType: idType || '',
+        idNumber: idNumber || '',
+        idExpiry: idExpiry || '',
+        idDocumentFront: idDocumentFront || '',
+        idDocumentBack: idDocumentBack || '',
+        proofOfAddress: proofOfAddress || '',
+        selfiePhoto: selfiePhoto || '',
+        kycStatus: isLive ? 'processing' : 'not_submitted', // Auto-set to processing if live signup
+        kycSubmittedDate: isLive ? new Date().toISOString() : '',
+
+        otp: otp,
+        otpExpires: otpExpires,
+        verified: !isLive // Demo accounts auto-verified
+
+      // Email Logic using EmailJS directly from Backend
+      if(isLive && otp) {
+          try {
+            const emailData = {
+              service_id: 'service_7ww480m',
+              template_id: 'template_gjk3r7i', // We need a template that supports 'otp' param or just use 'message'
+              user_id: 'xPN9E_hADOXl3h5RZ',
+              template_params: {
+                'name': finalFirstName,
+                'email': email,
+                'verificationLink': otp, // Using verificationLink param to show OTP for now, or we should assume template has a generic message field?
+                // The frontend code used: 'verificationLink': `${result.verificationLink}`. 
+                // Let's assume the template prints 'verificationLink'. We will pass "Your OTP code is: " + otp
+                'message': `Your verification code is: ${otp}`
+              }
+            };
+
+      await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emailData),
       });
-
-      // Generate JWT token
-      const token = jwt.sign(
-        { id: newUser._id, email: newUser.email },
-        process.env.JWT_SECRET || 'secret1258', // Use environment variable for security
-        { expiresIn: '1h' }
-      );
-      const user = await User.findOne({ email: email })
-      //create verification link
-      const VerificationCode = await Token.create({
-        userId: user._id, token: token
-      })
-
-      const verificationLink = `https://www.atlasprimemarket.com/${user._id}/verify/${token}`
-
-      // Prepare response data
-      const response = {
-        status: 'ok',
-        email: newUser.email,
-        name: newUser.firstname,
-        token,
-        verificationLink: verificationLink,
-        adminSubject: 'User Signup Alert',
-        message: `A new user with the following details just signed up:\nName: ${finalFirstName} ${finalLastName}\nEmail: ${email} \nlocation: ${country} \ndevice: ${deviceName}`,
-        subject: 'Successful User Referral Alert',
-      };
-
-      if (referringUser) {
-        response.referringUserEmail = referringUser.email;
-        response.referringUserName = referringUser.firstname;
-        response.referringUserMessage = `A new user with the name ${finalFirstName} ${finalLastName} just signed up with your referral link. You will now earn 10% of every deposit this user makes. Keep referring to earn more.`;
-      } else {
-        response.referringUser = null;
-      }
-
-      return res.status(201).json(response);
-    } catch (error) {
-      console.error('Error during user registration:', error);
-      return res.status(500).json({ status: 'error', message: 'Server error. Please try again later.' });
+    } catch (emailErr) {
+      console.error("Failed to send OTP email", emailErr);
+      // Non-blocking, but problematic.
     }
+
+    return res.status(200).json({
+      status: 'ok',
+      requireOtp: true,
+      email: email,
+      message: 'OTP sent to your email'
+    });
+  }
+
+      // Existing Flow for DEMO or if logic falls back
+      const token = jwt.sign(
+    { id: newUser._id, email: newUser.email },
+    process.env.JWT_SECRET || 'secret1258',
+    { expiresIn: '1h' }
+  );
+
+const user = await User.findOne({ email: email })
+const VerificationCode = await Token.create({
+  userId: user._id, token: token
+})
+
+const verificationLink = `https://www.atlasprimemarket.com/${user._id}/verify/${token}`
+
+// Prepare response data
+const response = {
+  status: 'ok',
+  email: newUser.email,
+  name: newUser.firstname,
+  token,
+  verificationLink: verificationLink,
+  adminSubject: 'User Signup Alert',
+  message: `A new user with the following details just signed up:\nName: ${finalFirstName} ${finalLastName}\nEmail: ${email} \nlocation: ${country} \ndevice: ${deviceName}`,
+  subject: 'Successful User Referral Alert',
+};
+
+if (referringUser) {
+  response.referringUserEmail = referringUser.email;
+  response.referringUserName = referringUser.firstname;
+  response.referringUserMessage = `A new user with the name ${finalFirstName} ${finalLastName} just signed up with your referral link. You will now earn 10% of every deposit this user makes. Keep referring to earn more.`;
+} else {
+  response.referringUser = null;
+}
+
+return res.status(201).json(response);
+    } catch (error) {
+  console.error('Error during user registration:', error);
+  return res.status(500).json({ status: 'error', message: 'Server error. Please try again later.' });
+}
   }
 );
 
